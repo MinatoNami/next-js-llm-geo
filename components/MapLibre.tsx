@@ -83,25 +83,26 @@ export default function MapLibre() {
   };
 
   return (
-    <Map
-      initialViewState={INITIAL_VIEW_STATE}
-      style={{ width: 1280, height: 1280 }}
-      onClick={handleMapClick}
-      mapStyle="https://api.maptiler.com/maps/streets/style.json?key=q9G2iELJlYcDN9PPIUMI"
-    >
-      {selected && (
-        <Popup
-          key={selected.properties.name}
-          anchor="bottom"
-          style={{ zIndex: 10 }} /* position above deck.gl canvas */
-          longitude={selected.geometry.coordinates[0]}
-          latitude={selected.geometry.coordinates[1]}
-        >
-          {selected.properties.name} ({selected.properties.abbrev})
-        </Popup>
-      )}
-      <DeckGLOverlay layers={layers} /* interleaved*/ />
-      <NavigationControl position="top-left" />
-    </Map>
+    <div style={{ width: "100vw" }}>
+      <Map
+        initialViewState={INITIAL_VIEW_STATE}
+        onClick={handleMapClick}
+        mapStyle="https://api.maptiler.com/maps/streets/style.json?key=q9G2iELJlYcDN9PPIUMI"
+      >
+        {selected && (
+          <Popup
+            key={selected.properties.name}
+            anchor="bottom"
+            style={{ zIndex: 10 }} /* position above deck.gl canvas */
+            longitude={selected.geometry.coordinates[0]}
+            latitude={selected.geometry.coordinates[1]}
+          >
+            {selected.properties.name} ({selected.properties.abbrev})
+          </Popup>
+        )}
+        <DeckGLOverlay layers={layers} /* interleaved*/ />
+        <NavigationControl position="top-left" />
+      </Map>
+    </div>
   );
 }
