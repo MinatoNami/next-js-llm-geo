@@ -1,101 +1,114 @@
-import Image from "next/image";
+"use client";
+import React, { useState } from "react";
+// import { createRoot } from "react-dom/client";
+import {
+  Map,
+  NavigationControl,
+  Popup,
+  useControl,
+} from "react-map-gl/maplibre";
+import { GeoJsonLayer, ArcLayer } from "deck.gl";
+import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
+import "maplibre-gl/dist/maplibre-gl.css";
 
-export default function Home() {
+// source: Natural Earth http://www.naturalearthdata.com/ via geojson.xyz
+const AIR_PORTS =
+  "https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_airports.geojson";
+// const MAP_STYLE =
+//   "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+
+const INITIAL_VIEW_STATE = {
+  latitude: 51.47,
+  longitude: 0.45,
+  zoom: 4,
+  bearing: 0,
+  pitch: 30,
+};
+
+function DeckGLOverlay(props) {
+  const overlay = useControl(() => new DeckOverlay(props));
+  overlay.setProps(props);
+  return null;
+}
+
+export default function App() {
+  const [selected, setSelected] = useState(null);
+
+  const layers = [
+    new GeoJsonLayer({
+      id: "airports",
+      data: AIR_PORTS,
+      // Styles
+      filled: true,
+      pointRadiusMinPixels: 2,
+      pointRadiusScale: 2000,
+      getPointRadius: (f) => 11 - f.properties.scalerank,
+      getFillColor: [200, 0, 80, 180],
+      // Interactive props
+      pickable: true,
+      autoHighlight: true,
+      onClick: (info) => setSelected(info.object),
+      // beforeId: 'watername_ocean' // In interleaved mode, render the layer under map labels
+    }),
+    new ArcLayer({
+      id: "arcs",
+      data: AIR_PORTS,
+      dataTransform: (d) =>
+        d.features.filter((f) => f.properties.scalerank < 4),
+      // Styles
+      getSourcePosition: (f) => [-0.4531566, 51.4709959], // London
+      getTargetPosition: (f) => f.geometry.coordinates,
+      getSourceColor: [0, 128, 200],
+      getTargetColor: [200, 0, 80],
+      getWidth: 1,
+    }),
+  ];
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+    <Map
+      initialViewState={INITIAL_VIEW_STATE}
+      style={{ width: 1280, height: 1280 }}
+      mapStyle="https://api.maptiler.com/maps/streets/style.json?key=q9G2iELJlYcDN9PPIUMI"
+    >
+      {selected && (
+        <Popup
+          key={selected.properties.name}
+          anchor="bottom"
+          style={{ zIndex: 10 }} /* position above deck.gl canvas */
+          longitude={selected.geometry.coordinates[0]}
+          latitude={selected.geometry.coordinates[1]}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          {selected.properties.name} ({selected.properties.abbrev})
+        </Popup>
+      )}
+      <DeckGLOverlay layers={layers} /* interleaved*/ />
+      <NavigationControl position="top-left" />
+    </Map>
   );
 }
+// import * as React from "react";
+// import Map from "react-map-gl/maplibre";
+
+// const INITIAL_VIEW_STATE = {
+//   latitude: 51.47,
+//   longitude: 0.45,
+//   zoom: 4,
+//   bearing: 0,
+//   pitch: 30,
+// };
+
+// // function DeckGLOverlay(props) {
+// //   const overlay = useControl(() => new DeckOverlay(props));
+// //   overlay.setProps(props);
+// //   return null;
+// // }
+
+// export default function App() {
+//   return (
+//     <Map
+//       initialViewState={INITIAL_VIEW_STATE}
+//       style={{ width: 1280, height: 1280 }}
+//       mapStyle="https://api.maptiler.com/maps/streets/style.json?key=q9G2iELJlYcDN9PPIUMI"
+//     />
+//   );
+// }
