@@ -5,7 +5,7 @@ import {
   Popup,
   useControl,
 } from "react-map-gl/maplibre";
-import { GeoJsonLayer, ArcLayer, ScatterplotLayer } from "deck.gl";
+import { ScatterplotLayer } from "deck.gl";
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -30,7 +30,7 @@ function DeckGLOverlay(props) {
 }
 
 export default function MapLibre() {
-  const [selected, setSelected] = useState(null);
+  const [selected] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
 
   const layers = [
