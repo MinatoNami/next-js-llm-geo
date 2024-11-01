@@ -23,7 +23,7 @@ const INITIAL_VIEW_STATE = {
   pitch: 30,
 };
 
-function DeckGLOverlay(props) {
+function DeckGLOverlay(props: any) {
   const overlay = useControl(() => new DeckOverlay(props));
   overlay.setProps(props);
   return null;
