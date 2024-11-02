@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Map,
   NavigationControl,
@@ -8,6 +8,8 @@ import {
 import { ScatterplotLayer } from "deck.gl";
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+import fetcher from "../lib/request";
 
 // source: Natural Earth http://www.naturalearthdata.com/ via geojson.xyz
 // const AIR_PORTS =
@@ -29,9 +31,32 @@ function DeckGLOverlay(props: Object) {
   return null;
 }
 
-export default function MapLibre() {
+// export default async function GetPoints() {
+//   return (
+//     <MapLibre
+//       points={points.map((point) => ({
+//         longitude: point[0],
+//         latitude: point[1],
+//       }))}
+//     />
+//   );
+// }
+
+export default async function MapLibre() {
   const [selected] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
+
+  const [points, setPoints] = useState([]);
+
+  useEffect(() => {
+    async function fetchData() {
+      const response = await await fetcher("/volcanoes/radius");
+      const data = await response.json();
+      console.log("Response data", data);
+      setPoints(data.features[0].geometry.coordinates);
+    }
+    fetchData();
+  }, []);
 
   const layers = [
     new ScatterplotLayer({
