@@ -2,12 +2,13 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import duckdb
 import json
-import openai
+
+from openai_utils import get_openai_response
+
+from volcano_utils import nearest_volcanoes, volcanoes_within_radius, volcanoes_within_bounding_box
 
 app = Flask(__name__)
 CORS(app)
-# Set your OpenAI API key here
-openai.api_key = "??"
 
 with open('volcano.json', 'r') as file:
     volcano_data = json.load(file)
@@ -58,17 +59,7 @@ for feature in volcano_data['features']:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ST_Point(?, ?));
     """, [volcano_id, v_name, country, region, subregion, pei, h_active, vei_holoce, latitude, longitude, longitude, latitude])
 
-# Function to send a prompt to OpenAI's API
-def get_openai_response(prompt):
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",  # or "gpt-3.5-turbo"
-        messages=[
-            {"role": "system", "content": "You are an assistant that can help with volcano data queries."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=100
-    )
-    return response['choices'][0]['message']['content']
+
 
 # Example route to fetch sample data from DuckDB
 @app.route('/data', methods=['GET'])
@@ -84,122 +75,82 @@ def chat_query():
     try:
         # Get prompt from the request
         user_prompt = request.json.get('prompt')
-        print("Prompt:", user_prompt)
+        # print("Prompt:", user_prompt)
+
         # Send prompt to OpenAI and get a response
-        # ai_response = get_openai_response(user_prompt)
-        ai_response = "within"
+        ai_response = json.loads(get_openai_response(user_prompt))
+        # ai_response = {
+        #     "choice": "/volcanoes/nearest",
+        #     "latitude": 1.3521,
+        #     "longitude": 103.8198,
+        #     "nearest": 10
+        #     }
+        volcanoes = None
+        endpoint_choice = ai_response['choice'].split('/')[2]
+        if not endpoint_choice:
+             # If no specific query instruction, return AI response only
+            return jsonify({"ai_response": ai_response}), 200
         
         # Example: If response contains "within" or "radius", perform a spatial query
-        if "within" in ai_response or "radius" in ai_response:
-            # Extract radius and coordinates from response (assuming AI provides them clearly)
-            # For simplicity, assume default values if extraction is not covered yet
-            latitude, longitude = 40.821, 14.426  # Default coordinates (e.g., Vesuvius)
-            radius_km = 100  # Default radius in km
-            
-            # Query DuckDB for volcanoes within radius
-            query = """
-            SELECT V_Name, Country, Latitude, Longitude, ST_Distance(geometry, ST_Point(?, ?)) AS distance_km
-            FROM volcano_data
-            WHERE ST_DWithin(geometry, ST_Point(?, ?), ?);
-            """
-            radius_m = radius_km * 1000  # Convert km to meters
-            result = conn.execute(query, [longitude, latitude, longitude, latitude, radius_m]).fetchall()
-            
-            # Format the response for the frontend
-            volcanoes = [{
-                "name": row[0],
-                "country": row[1],
-                "latitude": row[2],
-                "longitude": row[3],
-                "distance_km": row[4]
-            } for row in result]
-            
-            return jsonify({"ai_response": ai_response, "volcanoes": volcanoes}), 200
+        if ('nearest'== endpoint_choice):
+            # Call nearest volcanoes endpoint and return
+            volcanoes = nearest_volcanoes(conn, ai_response)
+
+        elif ('radius' == endpoint_choice):
+            # Call volcanoes within radius endpoint and return
+            volcanoes = volcanoes_within_radius(conn, ai_response)
+
+        elif ('bounding-box' == endpoint_choice):
+            # Call volcanoes within bounding box endpoint and return
+            volcanoes = volcanoes_within_bounding_box(conn, ai_response)
+
+        if volcanoes:
+            # print("Volcanoes:", volcanoes)
+            return jsonify(volcanoes), 200
         
         # If no specific query instruction, return AI response only
         return jsonify({"ai_response": ai_response}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
-    
-@app.route('/volcanoes/radius', methods=['GET'])
-def get_volcanoes_within_radius():
-    """Retrieve all volcanoes within a radius (km) from a specified point."""
+
+
+# Returns the nth closest volcanoes to a given point
+@app.route('/volcanoes/nearest', methods=['GET'])
+def get_nearest_volcanoes():
+    """Retrieve the n nearest volcanoes to a specified point."""
+    data = request.get_json()
     try:
-        # latitude = float(request.args.get('latitude'))
-        # longitude = float(request.args.get('longitude'))
-        # radius_km = float(request.args.get('radius'))
-
-        # latitude, longitude = 1.33026764039613, 103.80974175381397  # Example coordinates (e.g., near Vesuvius)
-        # radius_km = 10  # Radius in kilometers
-        latitude = float(request.args.get('latitude', 1.264))
-        longitude = float(request.args.get('longitude', 103.840))
-        radius_km = float(request.args.get('radius', 100))
-        print("Latitude", latitude)
+        response = nearest_volcanoes(conn, data)
         
-        query = """
-        SELECT V_Name, Country, Latitude, Longitude, 
-               ST_Distance_Sphere(geometry, ST_Point(?, ?)) / 1000 AS distance_km
-        FROM volcano_data
-        WHERE ST_DWithin(geometry, ST_Point(?, ?), ?)
-        ORDER BY distance_km
-        LIMIT 5;
-        """
-
-        # query = """
-        # SELECT ST_Distance_Sphere(ST_Point(100.473, -0.381), ST_Point(?, ?))/1000 AS distance_k
-        # """
-        # Need to figure how to filter by spatial distance and return the distance in km
-
-        # Convert radius to meters (since ST_DWithin uses meters)
-        radius_m = radius_km * 1000
-        result = conn.execute(query, [longitude, latitude, longitude, latitude, radius_m]).fetchall()
-        print("Result" , result)
-        # Format results as JSON
-        volcanoes = [{
-            "name": row[0],
-            "country": row[1],
-            "latitude": row[2],
-            "longitude": row[3],
-            "distance_km": row[4]
-        } for row in result]
-
-        return jsonify(volcanoes), 200
+        return jsonify(response), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+# Returns all volcanoes within a given radius from a point  
+@app.route('/volcanoes/radius', methods=['GET'])
+def get_volcanoes_within_radius():
+    """Retrieve all volcanoes within a radius (km) from a specified point."""
+    data = request.get_json()
+    try:
+        response = volcanoes_within_radius(conn, data)
+
+        return jsonify(response), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+# Returns all volcanoes within a given bounding box
 @app.route('/volcanoes/bounding-box', methods=['GET'])
 def get_volcanoes_within_bounding_box():
     """Retrieve all volcanoes within a bounding box."""
+    data = request.get_json()
     try:
-        # min_lat = float(request.args.get('min_lat'))
-        # min_lon = float(request.args.get('min_lon'))
-        # max_lat = float(request.args.get('max_lat'))
-        # max_lon = float(request.args.get('max_lon'))
-
-        # Define bounding box coordinates (min_lon, min_lat, max_lon, max_lat)
-        min_lon, min_lat = 10, 35
-        max_lon, max_lat = 20, 45
-
-
-        query = """
-        SELECT V_Name, Country, Latitude, Longitude
-        FROM volcano_data
-        WHERE ST_Within(geometry, ST_MakeEnvelope(?, ?, ?, ?));
-        """
-
-        result = conn.execute(query, [min_lon, min_lat, max_lon, max_lat]).fetchall()
-
-        # Format results as JSON
-        volcanoes = [{
-            "name": row[0],
-            "country": row[1],
-            "latitude": row[2],
-            "longitude": row[3]
-        } for row in result]
-
-        return jsonify(volcanoes), 200
+        response = volcanoes_within_bounding_box(conn, data)
+    
+        return jsonify(response), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
