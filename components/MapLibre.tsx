@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Map,
   NavigationControl,
@@ -6,9 +6,9 @@ import {
   useControl,
   MapRef,
 } from "react-map-gl/maplibre";
-import { LineLayer, ScatterplotLayer } from "deck.gl";
+import { DeckGL } from "@deck.gl/react";
+import { Layer, LineLayer, ScatterplotLayer } from "deck.gl";
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
-import { FlyToInterpolator } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import fetcher from "../lib/request";
@@ -19,31 +19,37 @@ import fetcher from "../lib/request";
 // const MAP_STYLE =
 //   "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
-function DeckGLOverlay(props: Object) {
+type DeckOverlayProps = {
+  layers: Layer[];
+};
+
+function DeckGLOverlay(props: DeckOverlayProps) {
   const overlay = useControl(() => new DeckOverlay(props));
   overlay.setProps(props);
   return null;
 }
 
-interface Point {
+type Point = {
   country: string;
-  distance_km: number;
-  latitude: number;
-  longitude: number;
+  distance: number;
   name: string;
-}
+  longitude: number;
+  latitude: number;
+  initialLong: number;
+  initialLat: number;
+};
 
-interface MapLibreProps {
+type MapLibreProps = {
   pointList: Point[];
-}
+};
 
-const MapLibre: React.FC<MapLibreProp> = ({ pointList }) => {
+const MapLibre: React.FC<MapLibreProps> = ({ pointList }) => {
   const mapRef = useRef<MapRef>();
 
-  const [selected] = useState(null);
-  const [selectedLocation, setSelectedLocation] = useState(null);
+  // const [selected] = useState(null);
+  const [selectedLocation] = useState(null);
   const [selectedVolcano, setSelectedVolcano] = useState(null);
-  const [initialViewState, setInitialViewState] = useState({
+  const [initialViewState] = useState({
     latitude: 1.33026764039613,
     longitude: 103.80974175381397,
     zoom: 11,

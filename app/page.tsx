@@ -4,11 +4,21 @@ import MapLibre from "../components/MapLibre";
 import ChatBot from "../components/ChatBot";
 
 export default function App() {
-  const [pointList, setPointList] = useState([]);
+  type Point = {
+    country: string;
+    distance: number;
+    name: string;
+    longitude: number;
+    latitude: number;
+    initialLong: number;
+    initialLat: number;
+  };
+
+  const [pointList, setPointList] = useState<Point[]>([]);
   return (
     <div style={{ display: "flex" }}>
       <MapLibre pointList={pointList} />
-      <ChatBot pointList={pointList} setPointList={setPointList} />
+      <ChatBot setPointList={setPointList} />
     </div>
   );
 }

@@ -8,7 +8,21 @@ interface Message {
   isUser: boolean;
 }
 
-const ChatBot = ({ pointList, setPointList }) => {
+type Point = {
+  country: string;
+  distance: number;
+  name: string;
+  longitude: number;
+  latitude: number;
+  initialLong: number;
+  initialLat: number;
+};
+
+type Props = {
+  setPointList: React.Dispatch<React.SetStateAction<Point[]>>;
+};
+
+const ChatBot: React.FC<Props> = ({ setPointList }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -42,8 +56,17 @@ const ChatBot = ({ pointList, setPointList }) => {
       };
       setMessages((prev) => [...prev, botMessage]);
 
+      type ResponsePoint = {
+        country: string;
+        distance_km: number;
+        name: string;
+        longitude: number;
+        latitude: number;
+        initial_long: number;
+        initial_lat: number;
+      };
       if (response.points) {
-        const newPoints = response.points.map((point) => ({
+        const newPoints = response.points.map((point: ResponsePoint) => ({
           country: point.country,
           distance: point.distance_km,
           name: point.name,
