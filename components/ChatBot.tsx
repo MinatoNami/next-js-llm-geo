@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send } from "lucide-react";
+import fetcher from "@/lib/request";
 
 interface Message {
   id: number;
@@ -7,7 +8,7 @@ interface Message {
   isUser: boolean;
 }
 
-export default function ChatBot() {
+const ChatBot = ({ pointList, setPointList }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -33,21 +34,26 @@ export default function ChatBot() {
 
     // Simulate backend response
     try {
-      const response = await fetch("/api/process-query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: inputValue }),
-      });
-
-      if (!response.ok) throw new Error("Failed to get response");
-
-      const data = await response.json();
+      const response = await fetcher("/chat-query", { prompt: inputValue });
       const botMessage: Message = {
         id: Date.now() + 1,
-        text: data.response,
+        text: response.text,
         isUser: false,
       };
       setMessages((prev) => [...prev, botMessage]);
+
+      if (response.points) {
+        const newPoints = response.points.map((point) => ({
+          country: point.country,
+          distance: point.distance_km,
+          name: point.name,
+          longitude: point.longitude,
+          latitude: point.latitude,
+          initialLong: point.initial_long,
+          initialLat: point.initial_lat,
+        }));
+        setPointList(newPoints);
+      }
     } catch (error) {
       console.error("Error:", error);
       const errorMessage: Message = {
@@ -101,4 +107,6 @@ export default function ChatBot() {
       </form>
     </div>
   );
-}
+};
+
+export default ChatBot;

@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Map,
   NavigationControl,
   Popup,
   useControl,
+  MapRef,
 } from "react-map-gl/maplibre";
-import { ScatterplotLayer } from "deck.gl";
+import { LineLayer, ScatterplotLayer } from "deck.gl";
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
+import { FlyToInterpolator } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import fetcher from "../lib/request";
@@ -17,46 +19,79 @@ import fetcher from "../lib/request";
 // const MAP_STYLE =
 //   "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
-const INITIAL_VIEW_STATE = {
-  latitude: 1.33026764039613,
-  longitude: 103.80974175381397,
-  zoom: 11,
-  bearing: 0,
-  pitch: 30,
-};
-
 function DeckGLOverlay(props: Object) {
   const overlay = useControl(() => new DeckOverlay(props));
   overlay.setProps(props);
   return null;
 }
 
-// export default async function GetPoints() {
-//   return (
-//     <MapLibre
-//       points={points.map((point) => ({
-//         longitude: point[0],
-//         latitude: point[1],
-//       }))}
-//     />
-//   );
-// }
+interface Point {
+  country: string;
+  distance_km: number;
+  latitude: number;
+  longitude: number;
+  name: string;
+}
 
-export default async function MapLibre() {
+interface MapLibreProps {
+  pointList: Point[];
+}
+
+const MapLibre: React.FC<MapLibreProp> = ({ pointList }) => {
+  const mapRef = useRef<MapRef>();
+
   const [selected] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [selectedVolcano, setSelectedVolcano] = useState(null);
+  const [initialViewState, setInitialViewState] = useState({
+    latitude: 1.33026764039613,
+    longitude: 103.80974175381397,
+    zoom: 11,
+    bearing: 0,
+    pitch: 30,
+  });
+
+  const [lineLayers, setLineLayers] = useState([]);
 
   const [points, setPoints] = useState([]);
 
+  // Used to fetch all volcano points at the start
   useEffect(() => {
     async function fetchData() {
-      const response = await await fetcher("/volcanoes/radius");
-      const data = await response.json();
-      console.log("Response data", data);
-      setPoints(data.features[0].geometry.coordinates);
+      const response = await fetcher("/volcanoes/all");
+      // console.log("Response", response);
+      setPoints(response);
     }
     fetchData();
   }, []);
+
+  // Used to fly to the first point in the list
+  useEffect(() => {
+    if (pointList.length > 0) {
+      setLineLayers([]);
+      const temp = [];
+      pointList.forEach((point) => {
+        temp.push(
+          new LineLayer({
+            id: point.name,
+            data: [point],
+            getTargetPosition: (d) => [d.initialLong, d.initialLat],
+            getSourcePosition: (d) => [d.longitude, d.latitude],
+            getFillColor: [0, 0, 0],
+            onClick: (info) => setSelectedVolcano(info.object),
+            getRadius: 5000,
+            pickable: true,
+          })
+        );
+      });
+      setLineLayers(temp);
+      mapRef.current?.flyTo({
+        center: [pointList[0].longitude, pointList[0].latitude],
+        duration: 2000,
+      });
+      setSelectedVolcano(pointList[0]);
+    }
+  }, [pointList]);
 
   const layers = [
     new ScatterplotLayer({
@@ -65,64 +100,53 @@ export default async function MapLibre() {
       getPosition: (d) => [d.longitude, d.latitude],
       getFillColor: [255, 0, 0],
       getRadius: 10,
+      // pickable: true,
+    }),
+    new ScatterplotLayer({
+      id: "volcanoes-location",
+      data: points ? points : [],
+      getPosition: (d) => [d.longitude, d.latitude],
+      getFillColor: [0, 255, 0],
+      onClick: (info) => setSelectedVolcano(info.object),
+      getRadius: 5000,
       pickable: true,
     }),
-    // new GeoJsonLayer({
-    //   id: "airports",
-    //   data: AIR_PORTS,
-    //   // Styles
-    //   filled: true,
-    //   pointRadiusMinPixels: 2,
-    //   pointRadiusScale: 2000,
-    //   getPointRadius: (f) => 11 - f.properties.scalerank,
-    //   getFillColor: [255, 255, 0],
-    //   getTextColor: [0, 0, 0],
-    //   // Interactive props
-    //   pickable: true,
-    //   autoHighlight: true,
-    //   onClick: (info) => setSelected(info.object),
-    //   // beforeId: 'watername_ocean' // In interleaved mode, render the layer under map labels
-    // }),
-    // new ArcLayer({
-    //   id: "arcs",
-    //   data: AIR_PORTS,
-    //   dataTransform: (d) =>
-    //     d.features.filter((f) => f.properties.scalerank < 4),
-    //   // Styles
-    //   getSourcePosition: (f) => [-0.4531566, 51.4709959], // London
-    //   getTargetPosition: (f) => f.geometry.coordinates,
-    //   getSourceColor: [0, 128, 200],
-    //   getTargetColor: [200, 0, 80],
-    //   getTextColor: [0, 0, 0],
-    //   getWidth: 1,
-    // }),
+    ...lineLayers,
   ];
 
-  const handleMapClick = (event) => {
-    console.log("Event", event);
-    const point = event.lngLat;
-    const longitude = point.lng;
-    const latitude = point.lat;
-    setSelectedLocation({ longitude, latitude });
-    console.log(`Selected location:`, selectedLocation);
-  };
+  // const handleMapClick = (event) => {
+  //   // console.log("Event", event);
+  //   const point = event.lngLat;
+  //   const longitude = point.lng;
+  //   const latitude = point.lat;
+  //   setSelectedLocation({ longitude, latitude });
+  //   // console.log(`Selected location:`, selectedLocation);
+  // };
 
   return (
     <div style={{ width: "100vw" }}>
       <Map
-        initialViewState={INITIAL_VIEW_STATE}
-        onClick={handleMapClick}
+        ref={mapRef}
+        initialViewState={initialViewState}
         mapStyle="https://api.maptiler.com/maps/streets/style.json?key=q9G2iELJlYcDN9PPIUMI"
       >
-        {selected && (
+        {selectedVolcano && (
           <Popup
-            key={selected.properties.name}
+            key={selectedVolcano.name}
             anchor="bottom"
             style={{ zIndex: 10 }} /* position above deck.gl canvas */
-            longitude={selected.geometry.coordinates[0]}
-            latitude={selected.geometry.coordinates[1]}
+            longitude={selectedVolcano.longitude}
+            latitude={selectedVolcano.latitude}
           >
-            {selected.properties.name} ({selected.properties.abbrev})
+            <div style={{ color: "black" }}>
+              <h2>{selectedVolcano.name}</h2>
+              <p>Country: {selectedVolcano.country}</p>
+              <p>
+                {selectedVolcano.distance
+                  ? `Distance: ${selectedVolcano.distance.toFixed(2)} km`
+                  : ""}
+              </p>
+            </div>
           </Popup>
         )}
         <DeckGLOverlay layers={layers} /* interleaved*/ />
@@ -130,4 +154,6 @@ export default async function MapLibre() {
       </Map>
     </div>
   );
-}
+};
+
+export default MapLibre;
