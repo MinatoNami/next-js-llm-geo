@@ -34,8 +34,11 @@ def process_result(longitude, latitude, result, radius_km=0):
         "country": row[1],
         "latitude": row[2],
         "longitude": row[3],
-        "distance_km": distance_km
+        "distance_km": distance_km,
+        "initial_long": longitude,
+        "initial_lat": latitude
         }
+        print(latitude, longitude, result_lat, result_long, distance_km)
         #Explicitly check if distance is within radius (issue with st_dwithin or st_within)
         if radius_km == 0:
             volcanoes.append(obj)

@@ -5,7 +5,7 @@ import json
 
 from openai_utils import get_openai_response
 
-from volcano_utils import nearest_volcanoes, volcanoes_within_radius, volcanoes_within_bounding_box
+from volcano_utils import *
 
 app = Flask(__name__)
 CORS(app)
@@ -62,61 +62,69 @@ for feature in volcano_data['features']:
 
 
 # Example route to fetch sample data from DuckDB
-@app.route('/data', methods=['GET'])
+@app.route('/volcanoes/all', methods=['POST'])
 def get_data():
-    query = "SELECT * FROM volcano_data LIMIT 10"  # Replace with your DuckDB query
-    result = conn.execute(query).fetchall()
-    return jsonify(result)
+    try:
+        response = all_volcanoes(conn)
+        return jsonify(response), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 # Endpoint to handle chat and query DuckDB
 @app.route('/chat-query', methods=['POST'])
 def chat_query():
     """Accepts a user prompt, sends it to OpenAI, and queries DuckDB if needed."""
+    # print("Request:", request.json)
     try:
         # Get prompt from the request
         user_prompt = request.json.get('prompt')
         # print("Prompt:", user_prompt)
 
         # Send prompt to OpenAI and get a response
-        ai_response = json.loads(get_openai_response(user_prompt))
-        # ai_response = {
-        #     "choice": "/volcanoes/nearest",
-        #     "latitude": 1.3521,
-        #     "longitude": 103.8198,
-        #     "nearest": 10
-        #     }
+        response = get_openai_response(user_prompt)
+        
+        ai_response = json.loads(response)
+
+        # If its an empty object, then return an error
+        if ai_response == {}:
+            return jsonify({"error": "OpenAI API key not set in environment"}), 400
+        
         volcanoes = None
-        endpoint_choice = ai_response['choice'].split('/')[2]
+        endpoint_choice = ai_response['choice']
         if not endpoint_choice:
              # If no specific query instruction, return AI response only
-            return jsonify({"ai_response": ai_response}), 200
+            return jsonify(ai_response), 200
+        endpoint_choice = endpoint_choice.split('/')[2]
         
+        response_parameters = ai_response['parameters']
+        response_text = ai_response['text']
         # Example: If response contains "within" or "radius", perform a spatial query
         if ('nearest'== endpoint_choice):
             # Call nearest volcanoes endpoint and return
-            volcanoes = nearest_volcanoes(conn, ai_response)
+            volcanoes = nearest_volcanoes(conn, response_parameters)
 
         elif ('radius' == endpoint_choice):
             # Call volcanoes within radius endpoint and return
-            volcanoes = volcanoes_within_radius(conn, ai_response)
+            volcanoes = volcanoes_within_radius(conn, response_parameters)
 
         elif ('bounding-box' == endpoint_choice):
             # Call volcanoes within bounding box endpoint and return
-            volcanoes = volcanoes_within_bounding_box(conn, ai_response)
+            volcanoes = volcanoes_within_bounding_box(conn, response_parameters)
 
         if volcanoes:
             # print("Volcanoes:", volcanoes)
-            return jsonify(volcanoes), 200
+            return jsonify({"text": response_text, "points":volcanoes}), 200
         
-        # If no specific query instruction, return AI response only
-        return jsonify({"ai_response": ai_response}), 200
+        # If there are no volcanoes
+        return jsonify({"text": "There are no volcanoes that match your query. Please try again."}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
 # Returns the nth closest volcanoes to a given point
-@app.route('/volcanoes/nearest', methods=['GET'])
+@app.route('/volcanoes/nearest', methods=['POST'])
 def get_nearest_volcanoes():
     """Retrieve the n nearest volcanoes to a specified point."""
     data = request.get_json()
@@ -130,7 +138,7 @@ def get_nearest_volcanoes():
 
 
 # Returns all volcanoes within a given radius from a point  
-@app.route('/volcanoes/radius', methods=['GET'])
+@app.route('/volcanoes/radius', methods=['POST'])
 def get_volcanoes_within_radius():
     """Retrieve all volcanoes within a radius (km) from a specified point."""
     data = request.get_json()
@@ -143,7 +151,7 @@ def get_volcanoes_within_radius():
         return jsonify({"error": str(e)}), 400
 
 # Returns all volcanoes within a given bounding box
-@app.route('/volcanoes/bounding-box', methods=['GET'])
+@app.route('/volcanoes/bounding-box', methods=['POST'])
 def get_volcanoes_within_bounding_box():
     """Retrieve all volcanoes within a bounding box."""
     data = request.get_json()

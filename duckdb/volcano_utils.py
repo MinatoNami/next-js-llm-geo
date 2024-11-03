@@ -1,4 +1,38 @@
 from utils import process_result
+import json
+
+def all_volcanoes(conn):
+    # Query to get all volcanoes
+    query = """
+    SELECT V_Name, Country, Latitude, Longitude, ST_AsGeoJSON(geometry)
+    FROM volcano_data;
+    """
+    # Execute the query
+    result = conn.execute(query).fetchall()
+    
+    # volcanoes = []
+    # Format the results as JSON
+    # for row in result:
+    #     temp_geo = row[4]
+    #     temp_geo = json.loads(temp_geo)        
+    #     temp = {
+    #         "name": row[0],
+    #         "country": row[1],
+    #         "latitude": row[2],
+    #         "longitude": row[3],
+    #         "geometry": temp_geo
+    #     }
+    #     volcanoes.append(temp)
+    
+    volcanoes = [{
+        "name": row[0],
+        "country": row[1],
+        "latitude": row[2],
+        "longitude": row[3],
+        "geometry": row[4]
+    } for row in result]
+    
+    return volcanoes
 
 def nearest_volcanoes(conn, data):
     # Get latitude, longitude, and number of nearest volcanoes from the request

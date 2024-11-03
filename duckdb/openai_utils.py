@@ -22,19 +22,25 @@ def get_openai_response(prompt):
        - Parameters: min_lat (float), min_lon (float), max_lat (float), max_lon (float)
        - Example JSON input: { "min_lat": 35, "min_lon": 10, "max_lat": 45, "max_lon": 20 }
     
-    Return a JSON response with the required fields and have a key "choice", to indicate which endpoint would be used.
-    Strictly follow the format of the sameple JSON input provided.
+    Return a JSON response with the required fields under "parameters", a proper text reply to the user under "text" and have a key "choice",
+      to indicate which endpoint would be used.
+    Give a definitive answer to the user's query and provide the results in a clear and direct manner.
     """
-    client = OpenAI(
-            api_key=os.environ.get("OPENAI_API_KEY")
+
+    if "OPENAI_API_KEY" in os.environ:
+        client = OpenAI(
+                api_key=os.environ.get("OPENAI_API_KEY")
+            )
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # or "gpt-3.5-turbo"
+            messages=[
+                {"role": "system", "content": "You are a geospatiel chatbot that assist users with locating volcanoes. When asked for information, respond with the results in a clear and direct manner." + api_docs},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={ "type": "json_object" },
+            max_tokens=100
         )
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",  # or "gpt-3.5-turbo"
-        messages=[
-            {"role": "system", "content": "You are an assistant that can help with volcano data queries." + api_docs},
-            {"role": "user", "content": prompt}
-        ],
-        response_format={ "type": "json_object" },
-        max_tokens=100
-    )
-    return response.choices[0].message.content
+        # print("Open ai response", response)
+        return response.choices[0].message.content
+    else:
+        return "{\"error\": \"OpenAI API key not set in environment\"}"
