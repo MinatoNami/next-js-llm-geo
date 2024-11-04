@@ -112,7 +112,7 @@ const MapLibre: React.FC<MapLibreProps> = ({ pointList }) => {
       id: "volcanoes-location",
       data: points ? points : [],
       getPosition: (d) => [d.longitude, d.latitude],
-      getFillColor: [0, 255, 0],
+      getFillColor: [255, 0, 0],
       onClick: (info) => setSelectedVolcano(info.object),
       getRadius: 5000,
       pickable: true,
